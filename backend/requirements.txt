@@ -1,0 +1,18 @@
+fastapi>=0.104.0
+uvicorn>=0.24.0
+numpy>=1.24.0
+pydantic>=2.0.0
+nilearn>=0.10.0
+nibabel>=5.0.0
+scikit-learn>=1.3.0
+# PyTorch — CUDA 13.0 build (cu130 wheels; earliest with CUDA 13.x, compatible with CUDA 13.2 driver)
+# tribev2 caps torch<2.7 but cu130 only exists for 2.10+; override manually:
+# pip install "torch>=2.10.0" torchvision --index-url https://download.pytorch.org/whl/cu130
+torch>=2.5.1,<2.7
+torchvision>=0.20.0,<0.22
+# HuggingFace
+transformers>=4.45.0
+huggingface_hub>=0.24.0
+accelerate>=0.34.0
+sentencepiece>=0.2.0
+python-dotenv>=1.0.0
