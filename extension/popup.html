@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=400">
+  <title>NeuroReader</title>
+  <style>
+    /* ── Reset & Base ──────────────────────────────────── */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700&family=Space+Mono:wght@400;700&display=swap');
+
+    :root {
+      --bg-primary: #0a0e17;
+      --bg-card: #111827;
+      --bg-card-hover: #1a2235;
+      --text-primary: #e8ecf4;
+      --text-secondary: #8892a6;
+      --text-muted: #4a5568;
+      --accent: #6366f1;
+      --border: #1e293b;
+      --glow: rgba(99, 102, 241, 0.15);
+    }
+
+    body {
+      width: 420px;
+      min-height: 500px;
+      max-height: 600px;
+      overflow-y: auto;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: 'DM Sans', -apple-system, sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    body::-webkit-scrollbar { width: 4px; }
+    body::-webkit-scrollbar-track { background: transparent; }
+    body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* ── Header ────────────────────────────────────────── */
+    .header {
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      background: var(--bg-primary);
+      z-index: 10;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+
+    .brand {
+      font-family: 'Space Mono', monospace;
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: -0.5px;
+    }
+
+    .mode-badge {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: var(--bg-card);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      font-family: 'Space Mono', monospace;
+    }
+
+    .mode-badge.live {
+      color: #10b981;
+      border-color: rgba(16, 185, 129, 0.3);
+      background: rgba(16, 185, 129, 0.08);
+    }
+
+    /* ── States ─────────────────────────────────────────── */
+    .state { padding: 20px; }
+    .state.hidden { display: none; }
+
+    /* Loading */
+    .loading-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 20px;
+      gap: 20px;
+    }
+
+    .brain-loader {
+      width: 64px;
+      height: 64px;
+      position: relative;
+    }
+
+    .brain-loader .ring {
+      position: absolute;
+      inset: 0;
+      border: 2px solid transparent;
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1.2s linear infinite;
+    }
+
+    .brain-loader .ring:nth-child(2) {
+      inset: 6px;
+      border-top-color: #a855f7;
+      animation-duration: 1.8s;
+      animation-direction: reverse;
+    }
+
+    .brain-loader .ring:nth-child(3) {
+      inset: 12px;
+      border-top-color: #ec4899;
+      animation-duration: 2.4s;
+    }
+
+    .brain-loader .core {
+      position: absolute;
+      inset: 18px;
+      background: radial-gradient(circle, var(--accent), transparent);
+      border-radius: 50%;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+
+    .loading-text {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-family: 'Space Mono', monospace;
+    }
+
+    /* Error */
+    .error-container {
+      text-align: center;
+      padding: 40px 20px;
+    }
+
+    .error-icon { font-size: 32px; margin-bottom: 12px; }
+
+    .error-title {
+      font-weight: 700;
+      font-size: 14px;
+      margin-bottom: 6px;
+    }
+
+    .error-msg {
+      color: var(--text-secondary);
+      font-size: 12px;
+      margin-bottom: 16px;
+    }
+
+    .retry-btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 8px 20px;
+      border-radius: 6px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .retry-btn:hover { opacity: 0.85; }
+
+    /* ── Results ────────────────────────────────────────── */
+    .article-meta {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .article-title {
+      font-weight: 700;
+      font-size: 13px;
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .article-stats {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      font-family: 'Space Mono', monospace;
+    }
+
+    /* Summary */
+    .summary-box {
+      margin: 14px 20px;
+      padding: 12px 14px;
+      background: var(--glow);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      border-radius: 10px;
+      font-size: 12px;
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+
+    /* Dimension bars */
+    .brain-viz {
+      padding: 8px 20px 4px;
+    }
+
+    .brain-svg {
+      width: 100%;
+      max-width: 320px;
+      display: block;
+      margin: 0 auto;
+    }
+
+    .brain-outline {
+      fill: none;
+      stroke: #2a3450;
+      stroke-width: 1;
+    }
+
+    .brain-fissure {
+      fill: none;
+      stroke: #1a2235;
+      stroke-width: 0.5;
+    }
+
+    .hotspot {
+      transition: r 0.8s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.6s ease;
+      opacity: 0;
+    }
+
+    .hotspot.active {
+      opacity: 1;
+    }
+
+    .hemi-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 6px;
+      fill: var(--text-muted);
+      text-anchor: middle;
+    }
+
+    .dimensions {
+      padding: 0 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .dim-section-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      margin: 10px 0 4px;
+    }
+
+    .dim-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      transition: background 0.2s, border-color 0.2s;
+      cursor: default;
+    }
+
+    .dim-row:hover {
+      background: var(--bg-card-hover);
+      border-color: rgba(99, 102, 241, 0.2);
+    }
+
+    .dim-row.dominant {
+      border-color: rgba(99, 102, 241, 0.4);
+      background: var(--bg-card-hover);
+    }
+
+    .dim-icon {
+      font-size: 16px;
+      flex-shrink: 0;
+      width: 24px;
+      text-align: center;
+    }
+
+    .dim-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .dim-label {
+      font-weight: 600;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dim-label .dominant-tag {
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: var(--accent);
+      color: white;
+      font-weight: 700;
+    }
+
+    .dim-desc {
+      font-size: 10px;
+      color: var(--text-secondary);
+      margin-top: 1px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .dim-bar-wrap {
+      width: 80px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dim-bar-track {
+      flex: 1;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .dim-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+      width: 0;
+    }
+
+    .dim-score {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      width: 28px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    /* Footer */
+    .footer {
+      padding: 10px 20px 14px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+    }
+
+    .footer-text {
+      font-size: 9px;
+      color: var(--text-muted);
+      font-family: 'Space Mono', monospace;
+    }
+
+    .footer-text a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">🧠</div>
+      <span class="brand">NeuroReader</span>
+    </div>
+    <span class="mode-badge" id="modeBadge">offline</span>
+  </div>
+
+  <!-- Loading State -->
+  <div class="state" id="loadingState">
+    <div class="loading-container">
+      <div class="brain-loader">
+        <div class="ring"></div>
+        <div class="ring"></div>
+        <div class="ring"></div>
+        <div class="core"></div>
+      </div>
+      <div class="loading-text" id="loadingText">Extracting article...</div>
+    </div>
+  </div>
+
+  <!-- Error State -->
+  <div class="state hidden" id="errorState">
+    <div class="error-container">
+      <div class="error-icon">⚡</div>
+      <div class="error-title" id="errorTitle">Connection Failed</div>
+      <div class="error-msg" id="errorMsg">Could not reach the NeuroReader backend.</div>
+      <button class="retry-btn" id="retryBtn">Try Again</button>
+    </div>
+  </div>
+
+  <!-- Results State -->
+  <div class="state hidden" id="resultsState">
+    <div class="article-meta">
+      <div class="article-title" id="articleTitle"></div>
+      <div class="article-stats" id="articleStats"></div>
+    </div>
+
+    <div class="summary-box" id="summaryBox"></div>
+
+    <!-- Brain SVG Heatmap -->
+    <div class="brain-viz" id="brainViz">
+      <svg viewBox="0 0 200 100" class="brain-svg">
+        <!-- Left hemisphere outline -->
+        <path class="brain-outline" d="M50 10 C20 10, 5 30, 8 55 C10 72, 25 88, 50 88 C60 88, 65 82, 68 75 C72 65, 70 50, 68 40 C66 25, 60 10, 50 10 Z" />
+        <!-- Right hemisphere outline -->
+        <path class="brain-outline" d="M150 10 C180 10, 195 30, 192 55 C190 72, 175 88, 150 88 C140 88, 135 82, 132 75 C128 65, 130 50, 132 40 C134 25, 140 10, 150 10 Z" />
+        <!-- Central fissure (left) -->
+        <path class="brain-fissure" d="M50 14 C48 14, 47 30, 48 45 C49 55, 50 65, 52 78" />
+        <!-- Central fissure (right) -->
+        <path class="brain-fissure" d="M150 14 C152 14, 153 30, 152 45 C151 55, 150 65, 148 78" />
+        <!-- Lateral fissure (left) -->
+        <path class="brain-fissure" d="M20 48 C30 45, 42 42, 55 48 C60 50, 62 55, 65 60" />
+        <!-- Lateral fissure (right) -->
+        <path class="brain-fissure" d="M180 48 C170 45, 158 42, 145 48 C140 50, 138 55, 135 60" />
+
+        <!-- Activation hotspots (data-driven, positioned by region) -->
+        <!-- Left hemisphere -->
+        <circle class="hotspot" id="hs-visual-l"     cx="22" cy="40" r="0" data-dim="visual_imagery" />
+        <circle class="hotspot" id="hs-language-l"    cx="42" cy="55" r="0" data-dim="language_semantics" />
+        <circle class="hotspot" id="hs-executive-l"   cx="30" cy="22" r="0" data-dim="executive_reasoning" />
+        <circle class="hotspot" id="hs-empathy-l"     cx="52" cy="65" r="0" data-dim="empathy_social" />
+        <circle class="hotspot" id="hs-memory-l"      cx="48" cy="48" r="0" data-dim="memory_narrative" />
+        <circle class="hotspot" id="hs-threat-l"      cx="55" cy="55" r="0" data-dim="threat_salience" />
+        <circle class="hotspot" id="hs-pain-l"        cx="40" cy="32" r="0" data-dim="emotional_pain" />
+        <circle class="hotspot" id="hs-reward-l"      cx="38" cy="25" r="0" data-dim="reward_motivation" />
+
+        <!-- Right hemisphere -->
+        <circle class="hotspot" id="hs-visual-r"     cx="178" cy="40" r="0" data-dim="visual_imagery" />
+        <circle class="hotspot" id="hs-language-r"    cx="158" cy="55" r="0" data-dim="language_semantics" />
+        <circle class="hotspot" id="hs-executive-r"   cx="170" cy="22" r="0" data-dim="executive_reasoning" />
+        <circle class="hotspot" id="hs-empathy-r"     cx="148" cy="65" r="0" data-dim="empathy_social" />
+        <circle class="hotspot" id="hs-memory-r"      cx="152" cy="48" r="0" data-dim="memory_narrative" />
+        <circle class="hotspot" id="hs-threat-r"      cx="145" cy="55" r="0" data-dim="threat_salience" />
+        <circle class="hotspot" id="hs-pain-r"        cx="160" cy="32" r="0" data-dim="emotional_pain" />
+        <circle class="hotspot" id="hs-reward-r"      cx="162" cy="25" r="0" data-dim="reward_motivation" />
+
+        <!-- Hemisphere labels -->
+        <text x="50" y="96" class="hemi-label">L</text>
+        <text x="150" y="96" class="hemi-label">R</text>
+      </svg>
+    </div>
+
+    <div class="dimensions" id="dimensionsContainer"></div>
+
+    <div class="footer">
+      <div class="footer-text">
+        Brain mapping via <a href="https://github.com/facebookresearch/tribev2" target="_blank">TRIBE v2</a> · Meta FAIR
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
