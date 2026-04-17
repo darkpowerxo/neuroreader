@@ -167,9 +167,13 @@ class TribeWrapper:
             logging.warning(f"Parcellation mapper unavailable: {e}")
             self.parcellation = None
 
-    def predict_from_text(self, text: str) -> dict:
+    def predict_from_text(self, text: str, images: list[str] | None = None) -> dict:
         """
         Given article text, predict brain activations and return emotional profile.
+
+        Args:
+            text: The article text to analyze.
+            images: Optional list of image URLs from the article.
 
         Returns dict with:
             - dimensions: {dim_name: {score, label, description, ...}}
@@ -179,7 +183,7 @@ class TribeWrapper:
         if self.model is not None:
             return self._predict_real(text)
         else:
-            return self._predict_mock(text)
+            return self._predict_mock(text, images=images)
 
     def _predict_real(self, text: str) -> dict:
         """Run actual TRIBE v2 inference."""
@@ -226,7 +230,7 @@ class TribeWrapper:
         scores = {k: round(v, 3) for k, v in scores.items()}
         return self._format_output(scores)
 
-    def _predict_mock(self, text: str) -> dict:
+    def _predict_mock(self, text: str, images: list[str] | None = None) -> dict:
         """
         Mock prediction using heuristic NLP analysis.
         Used when TRIBE v2 is not installed — gives a demo experience.
@@ -284,6 +288,11 @@ class TribeWrapper:
             sum(text_lower.count(w) for w in visual_words) / max(word_count / 50, 1),
             1.0,
         )
+
+        # Boost visual imagery when article contains images
+        if images:
+            image_boost = min(len(images) * 0.12, 0.4)
+            scores["visual_imagery"] = min(scores["visual_imagery"] + image_boost, 1.0)
 
         # Memory/narrative (story structure indicators)
         narrative_words = [
@@ -404,6 +413,7 @@ class AnalyzeRequest(BaseModel):
     text: str
     url: Optional[str] = None
     title: Optional[str] = None
+    images: Optional[list[str]] = None
 
 
 class DimensionScore(BaseModel):
@@ -434,7 +444,7 @@ async def analyze_article(req: AnalyzeRequest):
     else:
         text = req.text
 
-    result = tribe.predict_from_text(text)
+    result = tribe.predict_from_text(text, images=req.images)
     return result
 
 

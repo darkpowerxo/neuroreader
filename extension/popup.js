@@ -45,11 +45,11 @@ async function run() {
     // Backend not running — try heuristic fallback in-browser
     try {
       const article = await extractArticleFromTab();
-      if (!article.text || article.wordCount < 30) {
+      if (!article.text || article.wordCount < 10) {
         setError("No Article Found", "Navigate to an article page and try again.");
         return;
       }
-      const result = heuristicAnalysis(article.text);
+      const result = heuristicAnalysis(article.text, article.images);
       renderResults(article, result);
       $("#modeBadge").textContent = "local";
       $("#modeBadge").classList.add("live");
@@ -73,7 +73,7 @@ async function run() {
     return;
   }
 
-  if (!article.text || article.wordCount < 30) {
+  if (!article.text || article.wordCount < 10) {
     setError(
       "No Article Found",
       "This page doesn't seem to contain a readable article. Try a news article or blog post."
@@ -93,6 +93,7 @@ async function run() {
           text: article.text,
           url: article.url,
           title: article.title,
+          images: (article.images || []).map((i) => i.src),
         }),
       },
       30000 // 30s timeout for model inference
@@ -157,6 +158,14 @@ async function extractArticleFromTab() {
 function renderResults(article, result) {
   // Article meta
   $("#articleTitle").textContent = article.title;
+  $("#articleDesc").textContent = article.description || "";
+  const imgEl = $("#articleImage");
+  if (article.image) {
+    imgEl.src = article.image;
+    imgEl.style.display = "block";
+  } else {
+    imgEl.style.display = "none";
+  }
   $("#articleStats").textContent = `${article.wordCount.toLocaleString()} words · ${result.mode === "tribev2" ? "TRIBE v2 model" : "heuristic analysis"}`;
 
   // Summary
@@ -198,6 +207,23 @@ function renderResults(article, result) {
 
   showState("resultsState");
 
+  // Populate source panel
+  const srcImages = $("#sourceImages");
+  srcImages.innerHTML = "";
+  const allImages = article.images || [];
+  if (article.image && !allImages.find((i) => i.src === article.image)) {
+    allImages.unshift({ src: article.image, alt: "" });
+  }
+  allImages.forEach((img) => {
+    const el = document.createElement("img");
+    el.src = img.src;
+    el.alt = img.alt || "";
+    el.title = img.alt || "";
+    srcImages.appendChild(el);
+  });
+
+  $("#sourceText").textContent = article.text || "(no text extracted)";
+
   // Animate brain SVG hotspots
   const DIM_COLORS = {
     threat_salience: "#E31937",
@@ -234,7 +260,7 @@ function renderResults(article, result) {
 }
 
 // ── In-browser heuristic fallback ─────────────────────────────
-function heuristicAnalysis(text) {
+function heuristicAnalysis(text, images) {
   const lower = text.toLowerCase();
   const wc = text.split(/\s+/).length;
   const norm = Math.max(wc / 50, 1);
@@ -242,12 +268,14 @@ function heuristicAnalysis(text) {
   const kw = (words) =>
     Math.min(words.reduce((s, w) => s + (lower.split(w).length - 1), 0) / norm, 1);
 
+  const imgCount = (images || []).length;
+
   const scores = {
     threat_salience: kw(["war","attack","kill","threat","danger","crisis","terror","bomb","death","violence","murder","weapon","conflict","fear"]),
     empathy_social: kw(["family","child","mother","community","together","support","help","care","love","people","human","suffer","compassion","refugee"]),
     reward_motivation: kw(["win","success","profit","gain","achieve","reward","opportunity","growth","breakthrough","innovation","celebrate","victory","billion"]),
     language_semantics: Math.min(Math.max(((text.split(/\s+/).reduce((s,w) => s + w.length, 0) / wc) - 4) / 4, 0), 1),
-    visual_imagery: kw(["image","picture","color","bright","dark","landscape","face","scene","view","beautiful","massive","towering","glow","shadow"]),
+    visual_imagery: Math.min(kw(["image","picture","color","bright","dark","landscape","face","scene","view","beautiful","massive","towering","glow","shadow"]) + Math.min(imgCount * 0.12, 0.4), 1),
     memory_narrative: kw(["remember","story","once","began","journey","years ago","childhood","history","legacy","tradition","memory","past","generation"]),
     executive_reasoning: kw(["analysis","evidence","study","research","data","percent","statistic","finding","conclude","hypothesis","therefore","however"]),
     emotional_pain: kw(["grief","loss","tragic","devastat","heartbreak","mourn","despair","agony","sorrow","betrayal","abandon","lonely","hopeless","injustice"]),
@@ -301,4 +329,15 @@ function fetchWithTimeout(url, options = {}, ms = 5000) {
 document.addEventListener("DOMContentLoaded", () => {
   run();
   $("#retryBtn").addEventListener("click", run);
+
+  // Source panel toggle
+  $("#sourceToggle").addEventListener("click", () => {
+    const toggle = $("#sourceToggle");
+    const panel = $("#sourcePanel");
+    toggle.classList.toggle("open");
+    panel.classList.toggle("open");
+    toggle.querySelector(".arrow").textContent = panel.classList.contains("open") ? "▲" : "▼";
+    const label = panel.classList.contains("open") ? "Hide extracted source" : "Show extracted source";
+    toggle.childNodes[toggle.childNodes.length - 1].textContent = " " + label;
+  });
 });
