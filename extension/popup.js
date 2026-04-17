@@ -84,6 +84,7 @@ async function run() {
   // 3. Send to backend for TRIBE v2 analysis
   setLoading("Predicting brain activation...");
   try {
+    const settings = getSettings();
     const response = await fetchWithTimeout(
       `${API_BASE}/analyze`,
       {
@@ -93,10 +94,12 @@ async function run() {
           text: article.text,
           url: article.url,
           title: article.title,
-          images: (article.images || []).map((i) => i.src),
+          images: settings.images ? (article.images || []).map((i) => i.src) : [],
+          enable_audio: settings.audio,
+          enable_video: settings.video,
         }),
       },
-      30000 // 30s timeout for model inference
+      120000 // 120s timeout — TTS + WhisperX can be slow
     );
 
     if (!response.ok) {
@@ -119,28 +122,45 @@ async function extractArticleFromTab() {
         return;
       }
 
+      const tabId = tabs[0].id;
+      const tabUrl = tabs[0].url || "";
+
+      // Can't inject into chrome://, edge://, about:, or extension pages
+      if (tabUrl.startsWith("chrome") || tabUrl.startsWith("edge") ||
+          tabUrl.startsWith("about:") || tabUrl.startsWith("chrome-extension://")) {
+        reject(new Error("Cannot extract from this page type"));
+        return;
+      }
+
       chrome.tabs.sendMessage(
-        tabs[0].id,
+        tabId,
         { action: "extractArticle" },
         (response) => {
           if (chrome.runtime.lastError) {
             // Content script not injected — inject it now
             chrome.scripting.executeScript(
               {
-                target: { tabId: tabs[0].id },
+                target: { tabId },
                 files: ["content.js"],
               },
-              () => {
+              (results) => {
+                if (chrome.runtime.lastError) {
+                  reject(new Error("Cannot access this page"));
+                  return;
+                }
                 setTimeout(() => {
                   chrome.tabs.sendMessage(
-                    tabs[0].id,
+                    tabId,
                     { action: "extractArticle" },
                     (res) => {
-                      if (res) resolve(res);
-                      else reject(new Error("Could not extract article"));
+                      if (chrome.runtime.lastError || !res) {
+                        reject(new Error("Could not extract article"));
+                      } else {
+                        resolve(res);
+                      }
                     }
                   );
-                }, 200);
+                }, 300);
               }
             );
           } else if (response) {
@@ -327,8 +347,24 @@ function fetchWithTimeout(url, options = {}, ms = 5000) {
 
 // ── Init ──────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
+  // Load saved settings
+  loadSettings();
+
   run();
   $("#retryBtn").addEventListener("click", run);
+
+  // Settings slide
+  $("#settingsBtn").addEventListener("click", () => {
+    $("#slider").classList.add("show-settings");
+  });
+  $("#settingsBack").addEventListener("click", () => {
+    $("#slider").classList.remove("show-settings");
+  });
+
+  // Persist toggles on change
+  ["toggleImages", "toggleAudio", "toggleVideo"].forEach((id) => {
+    $(`#${id}`).addEventListener("change", saveSettings);
+  });
 
   // Source panel toggle
   $("#sourceToggle").addEventListener("click", () => {
@@ -341,3 +377,25 @@ document.addEventListener("DOMContentLoaded", () => {
     toggle.childNodes[toggle.childNodes.length - 1].textContent = " " + label;
   });
 });
+
+// ── Settings persistence ──────────────────────────────────────
+function getSettings() {
+  return {
+    images: $("#toggleImages").checked,
+    audio: $("#toggleAudio").checked,
+    video: $("#toggleVideo").checked,
+  };
+}
+
+function saveSettings() {
+  chrome.storage.local.set({ neuroreaderSettings: getSettings() });
+}
+
+function loadSettings() {
+  chrome.storage.local.get("neuroreaderSettings", (data) => {
+    const s = data.neuroreaderSettings || { images: true, audio: true, video: true };
+    $("#toggleImages").checked = s.images;
+    $("#toggleAudio").checked = s.audio;
+    $("#toggleVideo").checked = s.video;
+  });
+}

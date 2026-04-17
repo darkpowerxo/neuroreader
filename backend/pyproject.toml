@@ -17,6 +17,7 @@ dependencies = [
     # its code is inference-only and works fine on 2.10; we override below.
     "torch>=2.10.0",
     "torchvision>=0.25.0",
+    "torchaudio>=2.10.0",
     # HuggingFace
     "transformers>=4.45.0",
     "huggingface_hub>=0.24.0",
@@ -26,6 +27,9 @@ dependencies = [
     "tribev2",
     # Env file support for HF_TOKEN
     "python-dotenv>=1.0.0",
+    # Image analysis
+    "Pillow>=10.0.0",
+    "whisperx>=3.8.5",
 ]
 
 [tool.uv]
@@ -34,11 +38,13 @@ dependencies = [
 override-dependencies = [
     "torch>=2.10.0",
     "torchvision>=0.25.0",
+    "torchaudio>=2.10.0",
 ]
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
+torchaudio = { index = "pytorch-cu130" }
 tribev2 = { git = "https://github.com/facebookresearch/tribev2.git" }
 
 [[tool.uv.index]]

@@ -66,12 +66,20 @@
       : document.querySelectorAll("article img, main img, .story-body img");
 
     for (const img of imgEls) {
-      const src = img.src || img.dataset.src || "";
+      // Resolve best image URL: srcset (highest res) > src > data-src
+      const src = getBestImageSrc(img);
       if (!src || seen.has(src)) continue;
       // Skip tiny icons, tracking pixels, avatars
       if (img.naturalWidth > 0 && img.naturalWidth < 80) continue;
       if (img.naturalHeight > 0 && img.naturalHeight < 80) continue;
-      if (/icon|logo|avatar|badge|emoji|pixel|tracking/i.test(src)) continue;
+      if (/icon|logo|avatar|badge|emoji|pixel|tracking|spinner/i.test(src)) continue;
+      // Skip SVGs (typically UI elements, not article images)
+      if (/\.svg(\?|$)/i.test(src)) continue;
+      // Skip site chrome: assets dirs, UI widgets, social/share buttons
+      if (/\/assets\/|\/ui\/|\/widgets\/|social|share|button|nav[-_]|toolbar/i.test(src)) continue;
+      // Skip images with icon/button-like alt text
+      const alt = (img.alt || "").trim();
+      if (/\bicon\b|\bbtn\b|\bbutton\b|\blogo\b/i.test(alt)) continue;
 
       seen.add(src);
       images.push({
@@ -87,6 +95,33 @@
     }
 
     return images;
+  }
+
+  function getBestImageSrc(img) {
+    // Parse srcset and pick the highest resolution source
+    const srcset = img.getAttribute("srcset");
+    if (srcset) {
+      const candidates = srcset.split(",").map((entry) => {
+        const parts = entry.trim().split(/\s+/);
+        const url = parts[0];
+        const descriptor = parts[1] || "";
+        // Parse width (e.g. "1280w") or pixel density (e.g. "2x")
+        const w = descriptor.endsWith("w") ? parseInt(descriptor) : 0;
+        const x = descriptor.endsWith("x") ? parseFloat(descriptor) : 1;
+        return { url, priority: w || x * 1000 };
+      });
+      // Pick the highest resolution
+      candidates.sort((a, b) => b.priority - a.priority);
+      if (candidates.length > 0 && candidates[0].url) {
+        // Resolve relative URLs
+        try { return new URL(candidates[0].url, window.location.href).href; }
+        catch { return candidates[0].url; }
+      }
+    }
+
+    // Fallback: src, data-src, currentSrc
+    const raw = img.currentSrc || img.src || img.dataset.src || "";
+    return raw;
   }
 
   function extractMainText() {
